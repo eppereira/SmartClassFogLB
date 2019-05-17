@@ -1,5 +1,6 @@
 import threading as th
 import random
+from fogDevice import *
 
 class LoadBalancer:
     fogDevices = dict()
@@ -9,7 +10,7 @@ class LoadBalancer:
     loads = dict()
     cpu = dict()
     _lock = th.Lock()
-
+    evaluations = dict()
     def __init__(self, fogs, id):
         # self.fogDevices = list()
         self.fogDevices = fogs
@@ -26,29 +27,43 @@ class LoadBalancer:
     def getBestFogDevice(self, priority):
         # cpu = dict()
         net = list()
-        print(self.cpu)
-        with self._lock:
-            if (priority == 1):
-                for f in self.fogDevices:
-                    if f.getLoadAverage() > 0:
-                        cpuEval = ((f.cpuCoreCount*f.frequency)/f.getLoadAverage()) + f.ram + f.storageAmount
-                    else:
-                        cpuEval = (f.cpuCoreCount*f.frequency)*100 + f.ram + f.storageAmount
-                    self.cpu[f.id] = cpuEval
-                    print('\nid: ',f.id, '\ncpuCount:', f.cpuCoreCount,
-                            '\nram: ',f.ram, '\nstorage: ', f.storageAmount, '\nrede: ',
-                            f.downloadbandwith, '\nLatency', f.latency, '\nfrequencia: ',
-                            f.frequency, '\nevaluation: ', cpuEval)
+        # print(self.cpu)
+        # with self._lock:
+        if (priority == 1):
+            #evaluation:
+            '''
+            A = CPU
+            B = FREQ
+            C = LOAD
+            D = RAM
+            E = RAM DISP
+            F = DISCO
+            G = DISCO DISP
+            IF(((C5*100)/A5)>=90;0;
+            IF(E5<=(D5-(D5*0,9));0;
+            IF(G5<=(F5-(F5*0,9));0;
+            (A5*B5)/((C5*100)/A5))+(E5/100)+(G5/1000)))
+            '''
+            for f in self.fogDevices:
+                self.evaluations[f.id] = f.getEvaluation()
+                f.showState()
+        # best_fog = (max(self.evaluations))
+        best_fog = max(self.evaluations, key=lambda k: self.evaluations[k])
+        # print('\nbest_fog: ', best_fog)
+        return self.fogDevices[best_fog]
 
-                #TODO!!
-                #fazer os gets and sets
+'''                # cpuEval = (f.cpuCoreCount*f.frequency)*100 + f.ram + f.storageAmount
+                # self.cpu[f.id] = cpuEval
+            #TODO!!
+            #fazer os gets and sets
 
-                dev = random.randint(0,100)
-                fogs = len(self.fogDevices)
-                if (self.fogDevices[random.randint(0,fogs-1)].getLoadAverage() >= (self.fogDevices[random.randint(0,fogs-1)].getCpuCount()*100)*0.8):
-                    pass
-                    # print('fog eleita: ' + str(self.fogDevices[random.randint(0,fogs-1)].id))
-                return self.fogDevices[random.randint(0,fogs-1)]
-            else:
-                # fogDevices.sort(o1,o2) #ordena e pega o menor loadAvg
-                return fogDevices[random.randint(0,fogs-1)]
+            dev = random.randint(0,100)
+            fogs = len(self.fogDevices)
+            if (self.fogDevices[best_fog].getLoadAverage() >= (self.fogDevices[best_fog].getCpuCount()*100)*0.8):
+                pass
+                print('fog eleita: ' + str(self.fogDevices[random.randint(0,fogs-1)].id))
+
+        return self.fogDevices[best_fog]
+        else:
+            # fogDevices.sort(o1,o2) #ordena e pega o menor loadAvg
+'''

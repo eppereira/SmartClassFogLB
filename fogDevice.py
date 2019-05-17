@@ -1,7 +1,13 @@
 import time
 from LoadBalancer import *
 import threading as th
+
 loadAverage = dict()
+ramDisp = dict()
+discoDisp = dict()
+redeUtilizada = dict()
+evaluations = dict()
+
 class FogDeviceLB:
     _lock = th.Lock()
     def __init__(self, id, name, cpuCoreCount, ram, storageAmount,\
@@ -20,9 +26,12 @@ class FogDeviceLB:
         self.limiteAceitavelLoadAvg = self.maxLoadAverage*0.8
         self.loadAverage = 0
         self.frequency = freq #definir no construtor
-        self.disk = 8000
+        
         if (self.id not in loadAverage):
             loadAverage[self.id] = 0
+            ramDisp[self.id] = self.ram
+            discoDisp[self.id] = self.storageAmount
+            redeUtilizada[self.id] = 0
 
 
     def doTask(self, data, latency):
@@ -34,7 +43,10 @@ class FogDeviceLB:
 
         dropou = False
         # print('load: ', loadAverage)
-        if(loadAverage[self.id] >= self.maxLoadAverage):
+        if((loadAverage[self.id] >= self.maxLoadAverage) or
+            (ramDisp[self.id] < self.ram) or
+            (discoDisp[self.id] < self.storageAmount) or
+            redeUtilizada[self.id] > self.downloadbandwith):
             # print('fog id: ' + str(self.id) + ' sobrecarregada. load: ', loadAverage[self.id])
             if (self.id in LoadBalancer.droped):
                 LoadBalancer.droped[self.id] += 1
@@ -46,15 +58,26 @@ class FogDeviceLB:
 
         if (dropou == False):
             # print('+5', self.id)
-            loadAverage[self.id] += 5
+            with LoadBalancer._lock:
+                loadAverage[self.id] += 5
+                ramDisp[self.id] -= 10
+                discoDisp[self.id] -= 100
+                redeUtilizada[self.id] += 2
+
             if(loadAverage[self.id] >= self.limiteAceitavelLoadAvg):
                 #fog sobrecarregada e penalizada com tempo
                 self.aguardar = 10/1000.
+                # self.aguardar = self.latency*0.5
                 time.sleep(self.aguardar)
             time.sleep(self.latency)
 
-            if(loadAverage[self.id] != 0):
+            # if(loadAverage[self.id] != 0):
+            with LoadBalancer._lock:
                 loadAverage[self.id] -= 5
+                ramDisp[self.id] += 10
+                discoDisp[self.id] += 100
+                redeUtilizada[self.id] -= 2
+
                 # print('-5', self.id)
 
 
@@ -73,9 +96,41 @@ class FogDeviceLB:
                     LoadBalancer.loads[self.id] = 1
         except:
             print('erro')
-
     def getLoadAverage(self):
-        return loadAverage[self.id]
+        if(loadAverage[self.id] == 0):
+            return 1/1000
+        else:
+            return loadAverage[self.id]/self.cpuCoreCount
+
+    def getEvaluation(self):
+        if(self.loadAverage >= 90):
+            e = 0
+        if(ramDisp[self.id] <= (self.ram-(self.ram*0.9))):
+            e = 0
+        if(discoDisp[self.id] <= (self.storageAmount-(self.storageAmount*0.9))):
+            e = 0
+        else:
+            e = ((self.cpuCoreCount*self.frequency)/((self.getLoadAverage()*100)/self.cpuCoreCount) + ramDisp[self.id]/100 + discoDisp[self.id]/1000)
+
+        # evaluations[self.id] = e
+        return e
+
+    # def getBestFog(self):
+        # if(len(evaluations)>0):
+    #     return (max(evaluations))
+
     def getCpuCount(self):
         return self.cpuCoreCount
-#TODO gets and sets
+
+    def showState(self):
+        if(ramDisp[self.id] < 20):
+            with LoadBalancer._lock:
+                print(  '\nid: ',self.id, '\ncpuCount:', self.cpuCoreCount,' load: ', self.getLoadAverage(),
+                        '\nram: ',self.ram, ' ram disp: ', ramDisp[self.id],
+                        '\nstorage: ', self.storageAmount, ' storage disp: ', discoDisp[self.id],
+                        '\nrede: ', self.downloadbandwith, ' rede utilizada: ', redeUtilizada[self.id],
+                        '\nLatency', self.latency, '\nfrequencia: ',self.frequency,
+                        '\nevaluation: ', self.getEvaluation())
+            # import os
+            # print('\npid:', os.getpid())
+

@@ -11,13 +11,13 @@ import string
 
 class TestaLB:
     def main(self):
-        self.SENSORES = 10000
-        self.FOGS = 10
+        self.SENSORES = 1000
+        self.FOGS = 100
         self.LATENCIASENSORES = 10/1000.
         self.PRIORIDADE = 1
         self.REQUISICOES = 1
-        self.SLEEP = 0
-        print("Começando o teste com " + str(self.SENSORES) +
+        self.SLEEP = 0.1
+        print(  "Começando o teste com " + str(self.SENSORES) +
                 " sensores e " + str(self.FOGS) + " Nós de Fog.")
         fogs = list()
         for i in range(self.FOGS):
