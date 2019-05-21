@@ -22,11 +22,10 @@ class FogDeviceLB:
         self.latency = latency
         self.aguardar = 0
         self.dropados = 0
-        self.maxLoadAverage = 100*self.cpuCoreCount # 100% por core
-        self.limiteAceitavelLoadAvg = self.maxLoadAverage*0.8
+        self.maxLoadAverage = 100 * self.cpuCoreCount # 100% por core
+        self.limiteAceitavelLoadAvg = self.maxLoadAverage*0.9
         self.loadAverage = 0
-        self.frequency = freq #definir no construtor
-        
+        self.frequency = freq # faz sentido usar?
         if (self.id not in loadAverage):
             loadAverage[self.id] = 0
             ramDisp[self.id] = self.ram
@@ -43,11 +42,19 @@ class FogDeviceLB:
 
         dropou = False
         # print('load: ', loadAverage)
-        if((loadAverage[self.id] >= self.maxLoadAverage) or
+        if((loadAverage[self.id] >= self.maxLoadAverage)):
+            ''' or
             (ramDisp[self.id] < self.ram) or
             (discoDisp[self.id] < self.storageAmount) or
             redeUtilizada[self.id] > self.downloadbandwith):
-            # print('fog id: ' + str(self.id) + ' sobrecarregada. load: ', loadAverage[self.id])
+            '''
+            # print('fog id: ' + str(self.id) + ' sobrecarregada.\nload: ', loadAverage[self.id])
+            # print('CPU: ', self.cpuCoreCount)
+            try:
+                pass
+                # print('eval =', evaluations[self.id])
+            except:
+                pass
             if (self.id in LoadBalancer.droped):
                 LoadBalancer.droped[self.id] += 1
             else:
@@ -77,7 +84,7 @@ class FogDeviceLB:
                 ramDisp[self.id] += 10
                 discoDisp[self.id] += 100
                 redeUtilizada[self.id] -= 2
-
+            #evaluations[self.id] = self.get
                 # print('-5', self.id)
 
 
