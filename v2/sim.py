@@ -31,11 +31,11 @@ class FogDevice:
     def __init__(self, i):
         self.id = i
 
-        self.cpuCount = 4   #random.randint(1, 8)            # numero de cores
-        self.ramAmount = 2048 # 2**random.randint(8, 13)       # Mb
-        self.netCapacity = 100 # random.randint(1, 100)*10    # Mbps
-        self.diskCapacity = 160000 # random.randint(8, 500)*1000 # Mb vai de 5 até 500GB
-        self.CPU_freq = 1200 # random.randint(8, 21)*100      # Mhz
+        self.cpuCount = random.randint(1, 8)            # numero de cores
+        self.ramAmount = 2**random.randint(8, 13)       # Mb
+        self.netCapacity = random.randint(10, 100)    # Mbps
+        self.diskCapacity = random.randint(8, 50)*1000 # Mb vai de 5 até 500GB
+        self.CPU_freq = random.randint(8, 21)*100      # Mhz
 
         self.CPU_history[self.id] = list()
         self.MEM_history[self.id] = list()
@@ -144,9 +144,9 @@ class FogDevice:
             return 0
 
     def evaluate(self, task):
-        if (self.CPU > self.maxCPU * 0.9 and
-            self.MEM > self.maxMEM * 0.9 and
-            self.NET > self.maxNET * 0.9 and
+        if (self.CPU > self.maxCPU * 0.9 or
+            self.MEM > self.maxMEM * 0.9 or
+            self.NET > self.maxNET * 0.9 or
             self.maxDISK * 0.9 < self.DISK):
 
             self.evaluation = 0
@@ -248,7 +248,7 @@ class Sensor:
 class Simulation:
     def __init__(self):
         self.SENSORES = 500
-        self.FOGS = 2
+        self.FOGS = 10
 
     def sim(self):
         f = Fog(self.FOGS)
