@@ -17,6 +17,9 @@ class FogDevice:
     dropsCount = 0
     sucessCount = 0
     tryCount = 0
+
+    evaluation = 100000
+
     times = dict()
     CPU_history = dict()
     MEM_history = dict()
@@ -61,6 +64,7 @@ class FogDevice:
             self.MEM += (task['mem'] / self.ramAmount) * 100
             self.NET += (task['net'] / self.netCapacity) * 100
             self.DISK += (task['disk'] / self.diskCapacity) * 100
+            self.evaluate(task)
 
         time.sleep(task['time'] / self.CPU_freq)
 
@@ -138,8 +142,33 @@ class FogDevice:
             return self.dropsCount / self.tryCount
         except:
             return 0
-    def evaluation(self):
-        pass
+
+    def evaluate(self, task):
+        if (self.CPU > self.maxCPU * 0.9 and
+            self.MEM > self.maxMEM * 0.9 and
+            self.NET > self.maxNET * 0.9 and
+            self.maxDISK * 0.9 < self.DISK):
+
+            self.evaluation = 0
+        else:
+            try:
+                r = ((self.cpuCount * self.CPU_freq)/self.CPU +
+                     (self.ramAmount * (self.MEM / 100)) / 100 +
+                     (self.diskCapacity * (self.DISK/100)) / 1000)
+                rede = (self.netCapacity * (self.NET / 100)
+                         / ((task['latency'] ** 2)
+                        / (task['jitter'] ** 2)))
+            except:
+                r = ((self.cpuCount * self.CPU_freq) +
+                     (self.ramAmount / 100) +
+                     self.diskCapacity / 1000)
+                rede = (self.netCapacity
+                        /((task['latency'] ** 2)
+                        /(task['jitter'] ** 2)))
+            finally:
+                self.evaluation = r * rede
+        return self.evaluation
+
 
 class Fog:
     _lock = th.Lock()
@@ -172,34 +201,9 @@ class Fog:
 
     # noinspection PyBroadException
     def bestEderSchedule(self, task):
-        evaluates = list()
-        for d in self.devices:
-            if (d.CPU > d.maxCPU * 0.9 and
-                    d.MEM > d.maxMEM * 0.9 and
-                    d.NET > d.maxNET * 0.9 and
-                    d.maxDISK * 0.9 < d.DISK):
-                eval = 0
-            else:
-                try:
-                    r = ((d.cpuCount * d.CPU_freq) / (d.CPU) +
-                         (d.ramAmount * (d.MEM / 100)) / 100 +
-                         (d.diskCapacity * (d.DISK / 100)) / 1000)
-                    rede = ((d.netCapacity * (d.NET / 100)
-                             / (task['latency'] ** 2))
-                            / (task['jitter'] ** 2))
-                except:
-                    r = ((d.cpuCount * d.CPU_freq) +
-                         (d.ramAmount / 100) +
-                         d.diskCapacity / 1000)
-                    rede = (d.netCapacity
-                             / ((task['latency'] ** 2)
-                            / (task['jitter'] ** 2)))
-                finally:
-                    eval = r * rede
-            evaluates.append(eval)
+        evaluates = [d.evaluation for d in self.devices]
         best = max(evaluates)
         choice = random.choice([i for i, v in enumerate(evaluates) if v == best])
-        # print(evaluates)
         return choice
 
     def printDevicesStat(self):
@@ -231,13 +235,13 @@ class Sensor:
             time.sleep(self.FREQ)
 
     def requestTask(self, f):
-        task = {'cpu': 5,  # 5% in one CPU core
-                'mem': 5,  # Mb
-                'disk': 30,  # Mb
-                'net': 1,  # Mb
+        task = {'cpu': 5,       # 5% in one CPU core
+                'mem': 5,       # Mb
+                'disk': 30,     # Mb
+                'net': 1,       # Mb
                 'latency': 15,  # ms
-                'jitter': 5,  # Random de 0 até 5
-                'time': 30}  # em uma CPU de 1Ghz, demora 30ms
+                'jitter': 5,    # Random de 0 até 5
+                'time': 30}     # em uma CPU de 1Ghz, demora 30ms
         f.sendTask(task)
 
 
