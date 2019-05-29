@@ -31,11 +31,11 @@ class FogDevice:
     def __init__(self, i):
         self.id = i
 
-        self.cpuCount = random.randint(1, 8)            # numero de cores
-        self.ramAmount = 2**random.randint(8, 13)       # Mb
-        self.netCapacity = random.randint(10, 100)    # Mbps
-        self.diskCapacity = random.randint(8, 50)*1000 # Mb vai de 5 até 500GB
-        self.CPU_freq = random.randint(8, 21)*100      # Mhz
+        self.cpuCount = 4           #random.randint(1, 8)            # numero de cores
+        self.ramAmount = 2048       #2**random.randint(8, 13)       # Mb
+        self.netCapacity = 100      #random.randint(10, 100)    # Mbps
+        self.diskCapacity = 15000   #random.randint(8, 50)*1000 # Mb vai de 5 até 500GB
+        self.CPU_freq = 1200        #random.randint(8, 21)*100      # Mhz
 
         self.CPU_history[self.id] = list()
         self.MEM_history[self.id] = list()
@@ -153,18 +153,18 @@ class FogDevice:
         else:
             try:
                 r = ((self.cpuCount * self.CPU_freq)/self.CPU +
-                     (self.ramAmount * (self.MEM / 100)) / 100 +
-                     (self.diskCapacity * (self.DISK/100)) / 1000)
-                rede = (self.netCapacity * (self.NET / 100)
-                         / ((task['latency'] ** 2)
-                        / (task['jitter'] ** 2)))
-            except:
-                r = ((self.cpuCount * self.CPU_freq) +
-                     (self.ramAmount / 100) +
-                     self.diskCapacity / 1000)
-                rede = (self.netCapacity
-                        /((task['latency'] ** 2)
-                        /(task['jitter'] ** 2)))
+                     (self.ramAmount-self.MEM)/100 +
+                     #(self.ramAmount * (self.MEM / 100)) / 100 +
+                     (self.diskCapacity-self.DISK)/1000)
+                     #(self.diskCapacity * (self.DISK/100)) / 1000)
+                rede = ((self.netCapacity-self.NET) / (task['latency'] ** 2)) / (task['jitter'] ** 2)
+            #except:
+                #r = ((self.cpuCount * self.CPU_freq) +
+                #     (self.ramAmount / 100) +
+                #     self.diskCapacity / 1000)
+                #rede = (self.netCapacity
+                #        /((task['latency'] ** 2)
+                #        /(task['jitter'] ** 2)))
             finally:
                 self.evaluation = r * rede
         return self.evaluation
@@ -214,9 +214,9 @@ class Fog:
                   '\nNET:', d.netCapacity, 'Disk:', d.diskCapacity,
                   '\navgCPU: ', d.cpuAvg(), 'avg mem: ', d.memAvg(),
                   '\navgNET: ', d.netAvg(), 'avg disk: ', d.diskAvg(),
-                  '\nDropRate: ', (d.dropRate()),
+                  '\nDropRate: ', (d.dropRate())*100,
                   '\nTryCount:', d.tryCount,
-                  '\nAvgTime:', d.timeAvg())
+                  '\nAvgTime:', d.timeAvg()*1000, ' ms')
 
 
 class Sensor:
@@ -226,7 +226,7 @@ class Sensor:
         self.CPU_USE = 5  # %
         self.FREQ = random.randint(0, 100) / 1000
         # tempo entre requests em segundos
-        self.REQUESTS = 1  # num of requests
+        self.REQUESTS = 100  # num of requests
         self.ID = i
 
     def start(self, f):
@@ -239,7 +239,7 @@ class Sensor:
                 'mem': 5,       # Mb
                 'disk': 30,     # Mb
                 'net': 1,       # Mb
-                'latency': 15,  # ms
+                'latency': 5,   # ms
                 'jitter': 5,    # Random de 0 até 5
                 'time': 30}     # em uma CPU de 1Ghz, demora 30ms
         f.sendTask(task)
@@ -247,8 +247,8 @@ class Sensor:
 
 class Simulation:
     def __init__(self):
-        self.SENSORES = 500
-        self.FOGS = 10
+        self.SENSORES = 1000
+        self.FOGS = 7
 
     def sim(self):
         f = Fog(self.FOGS)
@@ -257,7 +257,6 @@ class Simulation:
         [thread.start() for thread in t]
         [thread.join() for thread in t]
         f.printDevicesStat()
-
 
 s = Simulation()
 s.sim()
