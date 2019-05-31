@@ -47,7 +47,6 @@ class FogDevice:
         self.tryCount += 1
         if self.canReceive():
             startTime = time.time()
-
             # self.receiveTask(task)
             self.processTask(task)
 
@@ -100,7 +99,6 @@ class FogDevice:
                           self.NET < self.maxNET)
         return conditions
 
-    # noinspection PyBroadException
     def cpuAvg(self):
         try:
             avg = sum(self.CPU_history[self.id]) / len(self.CPU_history[self.id])
@@ -115,28 +113,24 @@ class FogDevice:
         except:
             return 0
 
-    # noinspection PyBroadException
     def timeAvg(self):
         try:
             return sum(self.times[self.id]) / len(self.times[self.id])
         except:
             return 0
 
-    # noinspection PyBroadException
     def netAvg(self):
         try:
             return sum(self.NET_history[self.id]) / len(self.NET_history[self.id])
         except:
             return 0
 
-    # noinspection PyBroadException
     def diskAvg(self):
         try:
             return sum(self.DISK_history[self.id]) / len(self.DISK_history[self.id])
         except:
             return 0
 
-    # noinspection PyBroadException
     def dropRate(self):
         try:
             return self.dropsCount / self.tryCount
@@ -151,22 +145,20 @@ class FogDevice:
 
             self.evaluation = 0
         else:
-            try:
-                r = ((self.cpuCount * self.CPU_freq)/self.CPU +
-                     (self.ramAmount-self.MEM)/100 +
-                     #(self.ramAmount * (self.MEM / 100)) / 100 +
-                     (self.diskCapacity-self.DISK)/1000)
-                     #(self.diskCapacity * (self.DISK/100)) / 1000)
-                rede = ((self.netCapacity-self.NET) / (task['latency'] ** 2)) / (task['jitter'] ** 2)
-            #except:
-                #r = ((self.cpuCount * self.CPU_freq) +
-                #     (self.ramAmount / 100) +
-                #     self.diskCapacity / 1000)
-                #rede = (self.netCapacity
-                #        /((task['latency'] ** 2)
-                #        /(task['jitter'] ** 2)))
-            finally:
-                self.evaluation = r * rede
+            r = ((self.cpuCount * self.CPU_freq)/self.CPU +
+                    # (self.ramAmount-self.MEM)/100 +
+                    (self.ramAmount * (self.MEM / 100)) / 100 +
+                    # (self.diskCapacity-self.DISK)/1000)
+                    (self.diskCapacity * (self.DISK/100)) / 1000)
+            rede = ((self.netCapacity-self.NET) / (task['latency'] ** 2)) / (task['jitter'] ** 2)
+        #except:
+            #r = ((self.cpuCount * self.CPU_freq) +
+            #     (self.ramAmount / 100) +
+            #     self.diskCapacity / 1000)
+            #rede = (self.netCapacity
+            #        /((task['latency'] ** 2)
+            #        /(task['jitter'] ** 2)))
+            self.evaluation = r * rede
         return self.evaluation
 
 
@@ -199,7 +191,6 @@ class Fog:
         smaller = avg.index(min(avg))
         return smaller
 
-    # noinspection PyBroadException
     def bestEderSchedule(self, task):
         evaluates = [d.evaluation for d in self.devices]
         best = max(evaluates)
@@ -221,12 +212,12 @@ class Fog:
 
 class Sensor:
 
-    def __init__(self, i):
+    def __init__(self, i, req):
         self.DATA_LEN = 1024
         self.CPU_USE = 5  # %
         self.FREQ = random.randint(0, 100) / 1000
         # tempo entre requests em segundos
-        self.REQUESTS = 100  # num of requests
+        self.REQUESTS = req  # num of requests
         self.ID = i
 
     def start(self, f):
@@ -246,17 +237,33 @@ class Sensor:
 
 
 class Simulation:
-    def __init__(self):
-        self.SENSORES = 1000
-        self.FOGS = 7
-
+    def __init__(self, sensors=1000, fogs=10, requests=10):
+        self.SENSORES = sensors
+        self.FOGS = fogs
+        self.REQUESTS = requests
+        self.f = Fog(self.FOGS)
+        self.avgtime = int()
     def sim(self):
-        f = Fog(self.FOGS)
-        sensors = [Sensor(i) for i in range(self.SENSORES)]
-        t = [th.Thread(target=s.start, args=(f,)) for s in sensors]
+        sensors = [Sensor(i, self.REQUESTS) for i in range(self.SENSORES)]
+        t = [th.Thread(target=s.start, args=(self.f,)) for s in sensors]
         [thread.start() for thread in t]
         [thread.join() for thread in t]
-        f.printDevicesStat()
+        self.f.printDevicesStat()
 
-s = Simulation()
-s.sim()
+    def timeResult(self):
+        self.avgtime = [self.f.devices[i].timeAvg() for i in range(len(self.f.devices))]
+        self.avgtime = sum(self.avgtime)/len(self.f.devices)
+        return (self.avgtime*1000)
+
+    def dropResult(self):
+        self.avgDrops = [self.f.devices[i].dropRate() for i in range(len(self.f.devices))]
+        self.avgDrops = sum(self.avgDrops)/len(self.f.devices)
+        return self.avgDrops*100
+
+def main():
+    s = Simulation()
+    s.sim()
+    # s.timeResult()
+
+if __name__== "__main__":
+  main()
