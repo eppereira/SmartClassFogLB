@@ -290,7 +290,23 @@ class Sensor:
                 'net': 1,  # Mb
                 'time': 30,  # em uma CPU de 1Ghz, demora 30ms
                 'bornTime': time.time(),
-                'priority': self.priority}
+                'priority': self.priority},
+            'medium':{
+                'cpu': 20,  # 5% in one CPU core
+                'mem': 50,  # Mb
+                'disk': 500,  # Mb
+                'net': 1,  # Mb
+                'time': 30,  # em uma CPU de 1Ghz, demora 30ms
+                'bornTime': time.time(),
+                'priority': self.priority},
+            'hard':{
+                'cpu': 30,  # 5% in one CPU core
+                'mem': 100,  # Mb
+                'disk': 800,  # Mb
+                'net': 1,  # Mb
+                'time': 30,  # em uma CPU de 1Ghz, demora 30ms
+                'bornTime': time.time(),
+                'priority': self.priority},
         }
         task = Task(taskResources['soft'])
         f.queueTask(task)
