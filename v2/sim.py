@@ -292,7 +292,7 @@ class Sensor:
                 'bornTime': time.time(),
                 'priority': self.priority}
         }
-        task = Task(t)
+        task = Task(taskResources['soft'])
         f.queueTask(task)
         # f.sendTask(task)
 
