@@ -23,6 +23,8 @@ class FogDevice:
 
     times0 = dict()
     times1 = dict()
+    queueTimes0 = dict()
+    queueTimes1 = dict()
     CPU_history = dict()
     MEM_history = dict()
     NET_history = dict()
@@ -30,15 +32,16 @@ class FogDevice:
     _printLock = th.Lock()
     _writeLock = th.Lock()
 
-    def __init__(self, i):
+    def __init__(self, i, res):
         self.id = i
-        self.cpuCount = 4  # random.randint(1, 8)            # numero de cores
-        self.ramAmount = 2048  # 2**random.randint(8, 13)       # Mb
-        self.netCapacity = 100  # random.randint(10, 100)    # Mbps
-        self.diskCapacity = 15000  # random.randint(8, 50)*1000 # Mb vai de 5 até 500GB
+        self.cpuCount = res['CPU_count']        # numero de cores
+        self.ramAmount = res['MEM']             # Mb
+        self.netCapacity = res['NET']    # Mbps
+        self.diskCapacity = res['DISK']  # random.randint(8, 50)*1000 # Mb vai de 5 até 500GB
         self.CPU_freq = 1200  # random.randint(8, 21)*100      # Mhz
-        self.latency = 10
-        self.jitter = 5
+        self.latency = res['latency']
+        self.jitter = res['jitter']
+
         self.CPU_history[self.id] = list()
         self.MEM_history[self.id] = list()
         self.NET_history[self.id] = list()
@@ -46,21 +49,27 @@ class FogDevice:
         self.times0[self.id] = list()
         self.times1[self.id] = list()
 
+        self.queueTimes0[self.id] = list()
+        self.queueTimes1[self.id] = list()
+
+
     def doTask(self, task):
         self.tryCount += 1
         if self.canReceive():
-            # startTime = time.time()
             startTime = task['bornTime']
-            # self.receiveTask(task)
+            processStart = time.time()
             self.processTask(task)
 
             self.sucessCount += 1
             endTime = time.time()
-            self.elapsedTime = endTime - startTime
+            self.elapsedTime = endTime - processStart
+            self.queueTime = endTime - startTime
             if (task['priority'] == 0):
                 self.times0[self.id].append(self.elapsedTime)
+                self.queueTimes0[self.id].append(self.queueTime)
             if (task['priority'] == 1):
                 self.times1[self.id].append(self.elapsedTime)
+                self.queueTimes1[self.id].append(self.queueTime)
         else:
             self.dropsCount += 1
 
@@ -79,7 +88,7 @@ class FogDevice:
 
         j = random.randrange(0, self.jitter)
         wait = (j + self.latency) / 1000
-        time.sleep(wait)
+        # time.sleep(wait)
 
         self.CPU_history[self.id].append(self.CPU)
         self.MEM_history[self.id].append(self.MEM)
@@ -124,19 +133,30 @@ class FogDevice:
         try:
             return [sum(self.times0[self.id]) / len(self.times0[self.id]),
                     sum(self.times1[self.id]) / len(self.times1[self.id])]
+        except:
+            return 0
 
+    def queueAvg0(self):
+        try:
+            return (sum(self.queueTimes0[self.id]) / len(self.queueTimes0[self.id]))
+        except:
+            return 0
+
+    def queueAvg1(self):
+        try:
+            return (sum(self.queueTimes0[self.id]) / len(self.queueTimes0[self.id]))
         except:
             return 0
 
     def timeAvg0(self):
         try:
-            return sum(self.times0[self.id]) / len(self.times0[self.id])
+            return (sum(self.times0[self.id]) / len(self.times0[self.id]))
         except:
             return 0
 
     def timeAvg1(self):
         try:
-            return sum(self.times1[self.id]) / len(self.times1[self.id])
+            return (sum(self.times1[self.id]) / len(self.times1[self.id]))
         except:
             return 0
 
@@ -167,12 +187,12 @@ class FogDevice:
             self.evaluation = 0
         else:
             r = ((self.cpuCount * self.CPU_freq) / self.CPU +
-                 # (self.ramAmount-self.MEM)/100 +
                  (self.ramAmount * (self.MEM / 100)) / 100 +
-                 # (self.diskCapacity-self.DISK)/1000)
                  (self.diskCapacity * (self.DISK / 100)) / 1000)
+
             rede = ((self.netCapacity - self.NET) / (self.latency ** 2)) / (self.jitter ** 2)
             self.evaluation = r * rede
+
         return self.evaluation
 
 
@@ -180,7 +200,7 @@ class Fog:
     _lock = th.Lock()
     sending = False
 
-    def __init__(self, dev):
+    def __init__(self, dev, res):
         self.n = dev
         self.fogResources = {
             'small':{
@@ -198,6 +218,7 @@ class Fog:
                     'NET': 80,
                     'latency': 10,
                     'jitter': 5},
+
             'large':{
                     'CPU_count': 4,
                     'MEM': 2048,
@@ -206,7 +227,7 @@ class Fog:
                     'latency': 10,
                     'jitter': 5}
         }
-        self.devices = [FogDevice(i) for i in range(dev)]
+        self.devices = [FogDevice(i, self.fogResources[res]) for i in range(dev)]
         self.q = queue.PriorityQueue()
 
     def queueTask(self, task):
@@ -215,23 +236,24 @@ class Fog:
             self.LB = th.Thread(target=self.sendTask)
             self.LB.start()
             # self.sendTask()
+            # self.sendTask()
 
     def sendTask(self):
         self.sending = True
         # print(self.q.qsize())
         while (self.q.empty() is False):
             # print(self.q.qsize())
-            task = self.q.queue[0].task
             with self._lock:
-                best_fog = self.getBestDevice(task)
+                best_fog = self.getBestDevice()
             if self.devices[best_fog].canReceive():
                 task = self.q.get().task
-                t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
+                t = th.Thread(target=self.devices[best_fog].doTask, args=(task,)) #aqui nao precisa thread, eu acho
                 t.start()
+                # self.devices[best_fog].doTask(task)
         self.sending = False
 
-    def getBestDevice(self, task):
-        return self.bestEderSchedule(task)
+    def getBestDevice(self):
+        return self.bestEderSchedule()
 
     def bestCpuAverage(self):
         avg = [d.CPU for d in self.devices]
@@ -243,7 +265,7 @@ class Fog:
         smaller = avg.index(min(avg))
         return smaller
 
-    def bestEderSchedule(self, task):
+    def bestEderSchedule(self):
         evaluates = [d.evaluation for d in self.devices]
         best = max(evaluates)
         choice = random.choice([i for i, v in enumerate(evaluates) if v == best])
@@ -308,9 +330,9 @@ class Sensor:
                 'bornTime': time.time(),
                 'priority': self.priority},
         }
+
         task = Task(taskResources['soft'])
         f.queueTask(task)
-        # f.sendTask(task)
 
 
 class Task:
@@ -325,11 +347,12 @@ class Task:
 
 
 class Simulation:
-    def __init__(self, sensors=1000, fogs=5, requests=100):
+    def __init__(self, sensors, fogs, fogResources='large', requests=100):
         self.SENSORES = sensors
-        # self.FOGS = fogs
         self.REQUESTS = requests
-        self.f = Fog(fogs)
+        self.f = Fog(fogs, res=fogResources)
+        self.avgtime0 = int()
+        self.avgtime1 = int()
         self.avgtime0 = int()
         self.avgtime1 = int()
 
@@ -341,11 +364,20 @@ class Simulation:
         [thread.join() for thread in t]
         # self.f.printDevicesStat()
 
-    def timeResult(self):
+    def processTimeResult(self):
         self.avgtime0 = [self.f.devices[i].timeAvg0() for i in range(len(self.f.devices))]
         self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
 
         self.avgtime1 = [self.f.devices[i].timeAvg1() for i in range(len(self.f.devices))]
+        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
+
+        return [self.avgtime0, self.avgtime1]
+
+    def queueTimeResult(self):
+        self.avgtime0 = [self.f.devices[i].queueAvg0() for i in range(len(self.f.devices))]
+        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
+
+        self.avgtime1 = [self.f.devices[i].queueAvg1() for i in range(len(self.f.devices))]
         self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
 
         return [self.avgtime0, self.avgtime1]
