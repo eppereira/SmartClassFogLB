@@ -25,6 +25,9 @@ class FogDevice:
     times1 = dict()
     queueTimes0 = dict()
     queueTimes1 = dict()
+    lbTimes0 = dict()
+    lbTimes1 = dict()
+
     CPU_history = dict()
     MEM_history = dict()
     NET_history = dict()
@@ -37,7 +40,7 @@ class FogDevice:
         self.cpuCount = res['CPU_count']        # numero de cores
         self.ramAmount = res['MEM']             # Mb
         self.netCapacity = res['NET']           # Mbps
-        self.diskCapacity = res['DISK']             # Mb vai de 5 até 500GB
+        self.diskCapacity = res['DISK']         # Mb
         self.CPU_freq = 1200                    # Mhz
         self.latency = res['latency']
         self.jitter = res['jitter']
@@ -49,6 +52,9 @@ class FogDevice:
         self.times0[self.id] = list()
         self.times1[self.id] = list()
 
+        self.lbTimes0[self.id] = list()
+        self.lbTimes1[self.id] = list()
+
         self.queueTimes0[self.id] = list()
         self.queueTimes1[self.id] = list()
 
@@ -56,20 +62,24 @@ class FogDevice:
     def doTask(self, task):
         self.tryCount += 1
         if self.canReceive():
-            startTime = task['bornTime']
-            processStart = time.time()
+            startTime = task['times']['bornTime']
+            task['times']['processStart'] = time.time()
             self.processTask(task)
 
             self.sucessCount += 1
             endTime = time.time()
-            self.elapsedTime = endTime - processStart
-            self.queueTime = endTime - startTime
+            self.elapsedTime = task['times']['processEnd'] - task['times']['processStart']
+            self.queueTime = task['times']['dequeueTime'] - task['times']['enqueueTime']
+            self.lbTime = task['times']['processStart'] - task['times']['dequeueTime']
+
             if (task['priority'] == 0):
                 self.times0[self.id].append(self.elapsedTime)
                 self.queueTimes0[self.id].append(self.queueTime)
+                self.lbTimes0[self.id].append(self.lbTime)
             if (task['priority'] == 1):
                 self.times1[self.id].append(self.elapsedTime)
                 self.queueTimes1[self.id].append(self.queueTime)
+                self.lbTimes1[self.id].append(self.lbTime)
         else:
             self.dropsCount += 1
 
@@ -84,7 +94,7 @@ class FogDevice:
         time.sleep(task['time'] / self.CPU_freq)
 
         if self.CPU > self.maxCPU * 0.9:
-            time.sleep(random.randint(1, 50) / self.CPU_freq)
+            time.sleep(random.randint(1, 100) / self.CPU_freq)
 
         j = random.randrange(0, self.jitter)
         wait = (j + self.latency) / 1000
@@ -100,6 +110,8 @@ class FogDevice:
             self.MEM -= (task['mem'] / self.ramAmount) * 100
             self.NET -= (task['net'] / self.netCapacity) * 100
             self.DISK -= (task['disk'] / self.diskCapacity) * 100
+        task['times']['processEnd'] = time.time()
+
 
     def receiveTask(self, task):
         self.NET += task['net']
@@ -109,10 +121,15 @@ class FogDevice:
         self.NET -= task['net']
 
     def canReceive(self):
+        t1 = time.time()
         with self._writeLock:
             conditions = (self.CPU < self.maxCPU and
                           self.MEM < self.maxMEM and
                           self.NET < self.maxNET)
+        '''
+        if conditions:
+            print(time.time() - t1)
+        '''
         return conditions
 
     def cpuAvg(self):
@@ -136,6 +153,18 @@ class FogDevice:
         except:
             return 0
 
+    def timeLB0(self):
+        try:
+            return (sum(self.lbTimes0[self.id]) / len(self.lbTimes0[self.id]))
+        except:
+            return 0
+
+    def TimeLB1(self):
+        try:
+            return (sum(self.lbTimes1[self.id]) / len(self.lbTimes1[self.id]))
+        except:
+            return 0
+
     def queueAvg0(self):
         try:
             return (sum(self.queueTimes0[self.id]) / len(self.queueTimes0[self.id]))
@@ -145,6 +174,18 @@ class FogDevice:
     def queueAvg1(self):
         try:
             return (sum(self.queueTimes1[self.id]) / len(self.queueTimes1[self.id]))
+        except:
+            return 0
+
+    def lbAvg0(self):
+        try:
+            return (sum(self.lbTimes0[self.id]) / len(self.lbTimes0[self.id]))
+        except:
+            return 0
+
+    def lbAvg1(self):
+        try:
+            return (sum(self.lbTimes1[self.id]) / len(self.lbTimes1[self.id]))
         except:
             return 0
 
@@ -232,22 +273,23 @@ class Fog:
 
     def queueTask(self, task):
         self.q.put(task)
+
         if (self.sending == False):
-            self.LB = th.Thread(target=self.sendTask)
-            self.LB.start()
-            # self.sendTask()
-            # self.sendTask()
+            # self.LB = th.Thread(target=self.sendTask)
+            # self.LB.start()
+            self.sendTask()
 
     def sendTask(self):
         self.sending = True
         # print(self.q.qsize())
         while (self.q.empty() is False):
-            # print(self.q.qsize())
             with self._lock:
-                best_fog = self.getBestDevice()
+                best_fog = self.getBestDevice() # TODO: definir a escolha da fog para tarefas nao prioritarias
             if self.devices[best_fog].canReceive():
+                # print(str(self.q.qsize())+ '\n')
                 task = self.q.get().task
-                t = th.Thread(target=self.devices[best_fog].doTask, args=(task,)) #aqui nao precisa thread, eu acho
+                task['times']['dequeueTime'] = time.time()
+                t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
                 t.start()
                 # self.devices[best_fog].doTask(task)
         self.sending = False
@@ -304,6 +346,13 @@ class Sensor:
             time.sleep(self.FREQ)
 
     def requestTask(self, f):
+        executionTime = {
+            'bornTime': time.time(),
+            'enqueueTime': None,
+            'dequeueTime': None,
+            'processStart': None,
+            'ProcessEnd': None
+        }
         taskResources = {
             'soft':{
                 'cpu': 10,  # 5% in one CPU core
@@ -311,7 +360,7 @@ class Sensor:
                 'disk': 100,  # Mb
                 'net': 1,  # Mb
                 'time': 30,  # em uma CPU de 1Ghz, demora 30ms
-                'bornTime': time.time(),
+                'times': executionTime,
                 'priority': self.priority},
             'medium':{
                 'cpu': 20,  # 5% in one CPU core
@@ -319,7 +368,7 @@ class Sensor:
                 'disk': 500,  # Mb
                 'net': 1,  # Mb
                 'time': 30,  # em uma CPU de 1Ghz, demora 30ms
-                'bornTime': time.time(),
+                'times': executionTime,
                 'priority': self.priority},
             'hard':{
                 'cpu': 30,  # 5% in one CPU core
@@ -327,11 +376,11 @@ class Sensor:
                 'disk': 800,  # Mb
                 'net': 1,  # Mb
                 'time': 30,  # em uma CPU de 1Ghz, demora 30ms
-                'bornTime': time.time(),
+                'times': executionTime,
                 'priority': self.priority},
         }
-
         task = Task(taskResources['soft'])
+        task.task['times']['enqueueTime'] = time.time()
         f.queueTask(task)
 
 
@@ -369,6 +418,15 @@ class Simulation:
         self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
 
         self.avgtime1 = [self.f.devices[i].timeAvg1() for i in range(len(self.f.devices))]
+        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
+
+        return [self.avgtime0, self.avgtime1]
+
+    def lbTimeResult(self):
+        self.avgtime0 = [self.f.devices[i].lbAvg0() for i in range(len(self.f.devices))]
+        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
+
+        self.avgtime1 = [self.f.devices[i].lbAvg1() for i in range(len(self.f.devices))]
         self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
 
         return [self.avgtime0, self.avgtime1]
