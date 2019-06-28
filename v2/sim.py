@@ -36,9 +36,9 @@ class FogDevice:
         self.id = i
         self.cpuCount = res['CPU_count']        # numero de cores
         self.ramAmount = res['MEM']             # Mb
-        self.netCapacity = res['NET']    # Mbps
-        self.diskCapacity = res['DISK']  # random.randint(8, 50)*1000 # Mb vai de 5 até 500GB
-        self.CPU_freq = 1200  # random.randint(8, 21)*100      # Mhz
+        self.netCapacity = res['NET']           # Mbps
+        self.diskCapacity = res['DISK']             # Mb vai de 5 até 500GB
+        self.CPU_freq = 1200                    # Mhz
         self.latency = res['latency']
         self.jitter = res['jitter']
 
@@ -144,7 +144,7 @@ class FogDevice:
 
     def queueAvg1(self):
         try:
-            return (sum(self.queueTimes0[self.id]) / len(self.queueTimes0[self.id]))
+            return (sum(self.queueTimes1[self.id]) / len(self.queueTimes1[self.id]))
         except:
             return 0
 
