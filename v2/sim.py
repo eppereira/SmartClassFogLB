@@ -1,8 +1,9 @@
 import queue
 import random
 import threading as th
+import multiprocessing as mp
 import time
-
+import csv
 
 class FogDevice:
     CPU = 0  # 0 to 100%
@@ -25,6 +26,9 @@ class FogDevice:
     times1 = dict()
     queueTimes0 = dict()
     queueTimes1 = dict()
+    queueLength0 = dict()
+    queueLength1 = dict()
+
     lbTimes0 = dict()
     lbTimes1 = dict()
 
@@ -32,8 +36,8 @@ class FogDevice:
     MEM_history = dict()
     NET_history = dict()
     DISK_history = dict()
-    _printLock = th.Lock()
-    _writeLock = th.Lock()
+    _printLock = mp.Lock()
+    _writeLock = mp.Lock()
 
     def __init__(self, i, res):
         self.id = i
@@ -58,6 +62,9 @@ class FogDevice:
         self.queueTimes0[self.id] = list()
         self.queueTimes1[self.id] = list()
 
+        self.queueLength0[self.id] = list()
+        self.queueLength1[self.id] = list()
+
 
     def doTask(self, task):
         self.tryCount += 1
@@ -71,15 +78,19 @@ class FogDevice:
             self.elapsedTime = task['times']['processEnd'] - task['times']['processStart']
             self.queueTime = task['times']['dequeueTime'] - task['times']['enqueueTime']
             self.lbTime = task['times']['processStart'] - task['times']['dequeueTime']
-
+            self.qLength = task['times']['queueLength']
             if (task['priority'] == 0):
                 self.times0[self.id].append(self.elapsedTime)
                 self.queueTimes0[self.id].append(self.queueTime)
                 self.lbTimes0[self.id].append(self.lbTime)
+                self.queueLength0[self.id].append(task['times']['queueLength'])
+
             if (task['priority'] == 1):
                 self.times1[self.id].append(self.elapsedTime)
                 self.queueTimes1[self.id].append(self.queueTime)
                 self.lbTimes1[self.id].append(self.lbTime)
+                self.queueLength1[self.id].append(task['times']['queueLength'])
+
         else:
             self.dropsCount += 1
 
@@ -177,6 +188,18 @@ class FogDevice:
         except:
             return 0
 
+    def queueLAvg0(self):
+        try:
+            return (sum(self.queueLength0[self.id]) / len(self.queueLength0[self.id]))
+        except:
+            return 0
+
+    def queueLAvg1(self):
+        try:
+            return (sum(self.queueLength1[self.id]) / len(self.queueLength1[self.id]))
+        except:
+            return 0
+
     def lbAvg0(self):
         try:
             return (sum(self.lbTimes0[self.id]) / len(self.lbTimes0[self.id]))
@@ -238,7 +261,7 @@ class FogDevice:
 
 
 class Fog:
-    _lock = th.Lock()
+    _lock = mp.Lock()
     sending = False
 
     def __init__(self, dev, res):
@@ -268,7 +291,12 @@ class Fog:
                     'latency': 10,
                     'jitter': 5}
         }
-        self.devices = [FogDevice(i, self.fogResources[res]) for i in range(dev)]
+        if (res=='mixed'):
+            sensors = [FogDevice(i, self.fogResources['small']) for i in range(self.n//3)]
+            sensors+= [FogDevice((i+self.n//3), self.fogResources['medium']) for i in range(self.n//3)]
+            sensors+= [FogDevice((i+(2*self.n)//3), self.fogResources['large']) for i in range(self.n//3)]
+        else:
+            self.devices = [FogDevice(i, self.fogResources[res]) for i in range(dev)]
         self.q = queue.PriorityQueue()
 
     def queueTask(self, task):
@@ -287,9 +315,15 @@ class Fog:
                 best_fog = self.getBestDevice() # TODO: definir a escolha da fog para tarefas nao prioritarias
             if self.devices[best_fog].canReceive():
                 # print(str(self.q.qsize())+ '\n')
+
+                qsize = self.q.qsize()
                 task = self.q.get().task
                 task['times']['dequeueTime'] = time.time()
-                t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
+
+                task['times']['queueLength'] = self.q.qsize()
+                # print(qsize)
+                # t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
+                t = mp.Process(target=self.devices[best_fog].doTask, args=(task,))
                 t.start()
                 # self.devices[best_fog].doTask(task)
         self.sending = False
@@ -331,16 +365,17 @@ class Fog:
 
 class Sensor:
 
-    def __init__(self, i, req):
+    def __init__(self, i, req, taskType):
         # self.FREQ = random.randint(0, 300) / 1000
-        self.FREQ = 50/1000
+        self.FREQ = 100/1000
         # tempo entre requests em milisegundos
         self.REQUESTS = req  # num of requests
         self.ID = i
+        self.taskType = taskType
         priorityLevels = [0, 1]
-        self.priority = random.choice(priorityLevels)
+        self.priority = priorityLevels[i%2]
 
-    def start(self, f):
+    def run(self, f):
         for i in range(self.REQUESTS):
             self.requestTask(f)
             time.sleep(self.FREQ)
@@ -351,35 +386,36 @@ class Sensor:
             'enqueueTime': None,
             'dequeueTime': None,
             'processStart': None,
-            'ProcessEnd': None
+            'ProcessEnd': None,
+            'queueLength': None
         }
         taskResources = {
             'soft':{
-                'cpu': 10,  # 5% in one CPU core
-                'mem': 20,  # Mb
-                'disk': 100,  # Mb
-                'net': 1,  # Mb
-                'time': 30,  # em uma CPU de 1Ghz, demora 30ms
+                'cpu': 10,      # in one CPU core
+                'mem': 20,      # Mb
+                'disk': 100,    # Mb
+                'net': 1,       # Mb
+                'time': 30,     # em uma CPU de 1Ghz, demora 30ms
                 'times': executionTime,
                 'priority': self.priority},
             'medium':{
-                'cpu': 20,  # 5% in one CPU core
-                'mem': 50,  # Mb
-                'disk': 500,  # Mb
-                'net': 1,  # Mb
-                'time': 30,  # em uma CPU de 1Ghz, demora 30ms
+                'cpu': 20,      # in one CPU core
+                'mem': 50,      # Mb
+                'disk': 500,    # Mb
+                'net': 1,       # Mb
+                'time': 30,     # em uma CPU de 1Ghz, demora 30ms
                 'times': executionTime,
                 'priority': self.priority},
             'hard':{
-                'cpu': 30,  # 5% in one CPU core
-                'mem': 100,  # Mb
-                'disk': 800,  # Mb
-                'net': 1,  # Mb
-                'time': 30,  # em uma CPU de 1Ghz, demora 30ms
+                'cpu': 30,      # in one CPU core
+                'mem': 100,     # Mb
+                'disk': 800,    # Mb
+                'net': 1,       # Mb
+                'time': 30,     # em uma CPU de 1Ghz, demora 30ms
                 'times': executionTime,
                 'priority': self.priority},
         }
-        task = Task(taskResources['soft'])
+        task = Task(taskResources[self.taskType])
         task.task['times']['enqueueTime'] = time.time()
         f.queueTask(task)
 
@@ -396,18 +432,29 @@ class Task:
 
 
 class Simulation:
-    def __init__(self, sensors, fogs, fogResources='large', requests=100):
+    def __init__(self, sensors, taskResource, fogs, fogResources='large', requests=100):
         self.SENSORES = sensors
         self.REQUESTS = requests
         self.f = Fog(fogs, res=fogResources)
+        self.taskResource = taskResource
         self.avgtime0 = int()
         self.avgtime1 = int()
         self.avgtime0 = int()
         self.avgtime1 = int()
 
     def sim(self):
-        sensors = [Sensor(i, self.REQUESTS) for i in range(self.SENSORES)]
-        t = [th.Thread(target=s.start, args=(self.f,)) for s in sensors]
+        if self.taskResource == 'mixed':
+            # print(type(self.SENSORES))
+            sensors =  [Sensor(i, self.REQUESTS, 'soft') for i in range(self.SENSORES//3)]
+            sensors+=[Sensor((i+self.SENSORES//3), self.REQUESTS, 'medium') for i in range(self.SENSORES//3)]
+            sensors+=[Sensor((i+(2*self.SENSORES)//3), self.REQUESTS, 'hard') for i in range(self.SENSORES//3)]
+            # t = [th.Thread(target=s.start, args=(self.f,)) for s in sensors]
+
+        else:
+            sensors = [Sensor(i, self.REQUESTS, self.taskResource) for i in range(self.SENSORES)]
+
+        # t = [th.Thread(target=s.run, args=(self.f,)) for s in sensors]
+        t = [mp.Process(target=s.run, args=(self.f,)) for s in sensors]
         [thread.start() for thread in t]
         # self.f.LB.join()
         [thread.join() for thread in t]
@@ -431,12 +478,29 @@ class Simulation:
 
         return [self.avgtime0, self.avgtime1]
 
+    def timeResult(self):
+        self.avgtime0 = [self.f.devices[i].timeAvg0() for i in range(len(self.f.devices))]
+        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
+
+        self.avgtime1 = [self.f.devices[i].timeAvg1() for i in range(len(self.f.devices))]
+        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
+
+        return [self.avgtime0, self.avgtime1]
+
     def queueTimeResult(self):
         self.avgtime0 = [self.f.devices[i].queueAvg0() for i in range(len(self.f.devices))]
         self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
 
         self.avgtime1 = [self.f.devices[i].queueAvg1() for i in range(len(self.f.devices))]
         self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
+        return [self.avgtime0, self.avgtime1]
+
+    def queueLengthResult(self):
+        self.avglength0 = [self.f.devices[i].queueLAvg0() for i in range(len(self.f.devices))]
+        self.avglength0 = (sum(self.avglength0) / len(self.f.devices))
+
+        self.avglength1 = [self.f.devices[i].queueLAvg1() for i in range(len(self.f.devices))]
+        self.avglength1 = (sum(self.avglength1) / len(self.f.devices))
 
         return [self.avgtime0, self.avgtime1]
 
@@ -447,10 +511,33 @@ class Simulation:
 
 
 def main():
-    s = Simulation()
-    s.sim()
-    print(s.timeResult())
+    t0 = time.time()
+    print('Start Time:',t0)
+    f = open('testes.csv', 'r')
+    tests = csv.reader(f)
+    for test in tests:
+        print(test[:4])
+        simulations = [Simulation(sensors=180 ,taskResource=test[2], fogs=9, fogResources=test[1], requests=int(test[3]))]
+        for s in simulations:
+            s.sim()
+            print('priority 0')
+            print('response time: ', (s.timeResult()[0]))
+            print('queue time: ', (s.lbTimeResult()[0]))
+            print('queue length: ', (s.queueLengthResult()[0]))
+            print('priority 1')
+            print('response time: ', (s.timeResult()[1]))
+            print('queue time: ', (s.lbTimeResult()[1]))
+            print('queue length: ', (s.queueLengthResult()[1]))
 
+            row = [s.timeResult()[0], s.lbTimeResult()[0], s.queueLengthResult()[0], s.timeResult()[1], s.lbTimeResult()[1],s.queueLengthResult()[1]]
+            with open('./result/teste'+test[0]+'.csv', 'a') as csvFile:
+                writer = csv.writer(csvFile, quoting=csv.QUOTE_ALL)
+                writer.writerow(row)
+            csvFile.close()
+
+    f.close()
+    tf = time.time()
+    print('elapsed time: ', (tf-t0))
 
 if __name__ == "__main__":
     main()
