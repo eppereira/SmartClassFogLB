@@ -102,7 +102,7 @@ class FogDevice:
             self.NET += (task['net'] / self.netCapacity) * 100
             self.DISK += (task['disk'] / self.diskCapacity) * 100
             self.evaluate(task)
-        
+
         task['info']['fog'] = self.id
         time.sleep(task['time'] / self.CPU_freq)
 
@@ -125,15 +125,11 @@ class FogDevice:
             self.NET -= (task['net'] / self.netCapacity) * 100
             self.DISK -= (task['disk'] / self.diskCapacity) * 100
         try:
-            with open(('./tests/'+str(task['info']['id_teste'])), 'a') as f:
+            with open(('./result'+str(task['info']['id_teste'])), 'a') as f:
                 f.write(json.dumps(task, indent=4))
         except:
             with open(('./tests/'+str(task['info']['id_teste'])), 'w') as f:
                 f.write(json.dumps(task, indent=4))
-        '''
-        with open('output.csv', 'w') as csvfile:
-            writer = csv.DictWriter(csvfile)
-            writer.writerow(task['times']+task['info'])'''
 
     def receiveTask(self, task):
         self.NET += task['net']
@@ -149,105 +145,6 @@ class FogDevice:
                           self.MEM < self.maxMEM and
                           self.NET < self.maxNET)
         return conditions
-
-    def cpuAvg(self):
-        try:
-            avg = sum(self.CPU_history[self.id]) / len(self.CPU_history[self.id])
-            return avg
-        except:
-            return 0
-
-    def memAvg(self):
-        try:
-            avg = sum(self.MEM_history[self.id]) / len(self.MEM_history[self.id])
-            return avg
-        except:
-            return 0
-
-    def timeAvg(self):
-        try:
-            return [sum(self.times0[self.id]) / len(self.times0[self.id]),
-                    sum(self.times1[self.id]) / len(self.times1[self.id])]
-        except:
-            return 0
-
-    def timeLB0(self):
-        try:
-            return (sum(self.lbTimes0[self.id]) / len(self.lbTimes0[self.id]))
-        except:
-            return 0
-
-    def TimeLB1(self):
-        try:
-            return (sum(self.lbTimes1[self.id]) / len(self.lbTimes1[self.id]))
-        except:
-            return 0
-
-    def queueAvg0(self):
-        try:
-            return (sum(self.queueTimes0[self.id]) / len(self.queueTimes0[self.id]))
-        except:
-            return 0
-
-    def queueAvg1(self):
-        try:
-            return (sum(self.queueTimes1[self.id]) / len(self.queueTimes1[self.id]))
-        except:
-            return 0
-
-    def queueLAvg0(self):
-        try:
-            return (sum(self.queueLength0[self.id]) / len(self.queueLength0[self.id]))
-        except:
-            return 0
-
-    def queueLAvg1(self):
-        try:
-            return (sum(self.queueLength1[self.id]) / len(self.queueLength1[self.id]))
-        except:
-            return 0
-
-    def lbAvg0(self):
-        try:
-            return (sum(self.lbTimes0[self.id]) / len(self.lbTimes0[self.id]))
-        except:
-            return 0
-
-    def lbAvg1(self):
-        try:
-            return (sum(self.lbTimes1[self.id]) / len(self.lbTimes1[self.id]))
-        except:
-            return 0
-
-    def timeAvg0(self):
-        try:
-            return (sum(self.times0[self.id]) / len(self.times0[self.id]))
-        except:
-            return 0
-
-    def timeAvg1(self):
-        try:
-            return (sum(self.times1[self.id]) / len(self.times1[self.id]))
-        except:
-            return 0
-
-    def netAvg(self):
-        try:
-            return sum(self.NET_history[self.id]) / len(self.NET_history[self.id])
-        except:
-            return 0
-
-    def diskAvg(self):
-        try:
-            return sum(self.DISK_history[self.id]) / len(self.DISK_history[self.id])
-        except:
-            return 0
-
-    def dropRate(self):
-        try:
-            return self.dropsCount / self.tryCount
-        except:
-            return 0
 
     def evaluate(self, task):
         if (self.CPU > self.maxCPU * 0.9 or
@@ -453,10 +350,6 @@ class Simulation:
         self.REQUESTS = requests
         self.f = Fog(fogs, res=fogResources)
         self.taskResource = taskResource
-        self.avgtime0 = int()
-        self.avgtime1 = int()
-        self.avgtime0 = int()
-        self.avgtime1 = int()
 
     def sim(self, id_teste):
         if self.taskResource == 'mixed':
@@ -476,56 +369,6 @@ class Simulation:
         [thread.join() for thread in t]
         # self.f.printDevicesStat()
 
-    def processTimeResult(self):
-        self.avgtime0 = [self.f.devices[i].timeAvg0() for i in range(len(self.f.devices))]
-        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
-
-        self.avgtime1 = [self.f.devices[i].timeAvg1() for i in range(len(self.f.devices))]
-        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
-
-        return [self.avgtime0, self.avgtime1]
-
-    def lbTimeResult(self):
-        self.avgtime0 = [self.f.devices[i].lbAvg0() for i in range(len(self.f.devices))]
-        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
-    
-        self.avgtime1 = [self.f.devices[i].lbAvg1() for i in range(len(self.f.devices))]
-        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
-
-        return [self.avgtime0, self.avgtime1]
-
-    def timeResult(self):
-        self.avgtime0 = [self.f.devices[i].timeAvg0() for i in range(len(self.f.devices))]
-        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
-
-        self.avgtime1 = [self.f.devices[i].timeAvg1() for i in range(len(self.f.devices))]
-        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
-
-        return [self.avgtime0, self.avgtime1]
-
-    def queueTimeResult(self):
-        self.avgtime0 = [self.f.devices[i].queueAvg0() for i in range(len(self.f.devices))]
-        self.avgtime0 = (sum(self.avgtime0) / len(self.f.devices))*1000
-
-        self.avgtime1 = [self.f.devices[i].queueAvg1() for i in range(len(self.f.devices))]
-        self.avgtime1 = (sum(self.avgtime1) / len(self.f.devices))*1000
-        return [self.avgtime0, self.avgtime1]
-
-    def queueLengthResult(self):
-        self.avglength0 = [self.f.devices[i].queueLAvg0() for i in range(len(self.f.devices))]
-        self.avglength0 = (sum(self.avglength0) / len(self.f.devices))
-
-        self.avglength1 = [self.f.devices[i].queueLAvg1() for i in range(len(self.f.devices))]
-        self.avglength1 = (sum(self.avglength1) / len(self.f.devices))
-
-        return [self.avgtime0, self.avgtime1]
-
-    def dropResult(self):
-        self.avgDrops = [self.f.devices[i].dropRate() for i in range(len(self.f.devices))]
-        self.avgDrops = sum(self.avgDrops) / len(self.f.devices)
-        return self.avgDrops * 100
-
-
 def main():
     t0 = time.time()
     print('Start Time:',t0)
@@ -540,5 +383,13 @@ def main():
     tf = time.time()
     print('elapsed time: ', (tf-t0))
 
+def main2():
+    t0 = time.time()
+    print('Start Time:',t0)
+    simulations = [Simulation(sensors=100 ,taskResource='soft', fogs=9, fogResources='large', requests=1000)]
+    for s in simulations:
+        s.sim('0')
+    tf = time.time()
+    print('elapsed time: ', (tf-t0))
 if __name__ == "__main__":
-    main()
+    main2()
