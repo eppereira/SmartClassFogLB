@@ -119,16 +119,17 @@ class FogDevice:
         self.DISK_history[self.id].append(self.DISK)
 
         task['times']['processEnd'] = time.time()
+
         with self._writeLock:
             self.CPU -= task['cpu'] / self.cpuCount
             self.MEM -= (task['mem'] / self.ramAmount) * 100
             self.NET -= (task['net'] / self.netCapacity) * 100
             self.DISK -= (task['disk'] / self.diskCapacity) * 100
         try:
-            with open(('./result'+str(task['info']['id_teste'])), 'a') as f:
+            with open((task['info']['id_teste']), 'a') as f:
                 f.write(json.dumps(task, indent=4))
         except:
-            with open(('./tests/'+str(task['info']['id_teste'])), 'w') as f:
+            with open((task['info']['id_teste']), 'w') as f:
                 f.write(json.dumps(task, indent=4))
 
     def receiveTask(self, task):
@@ -223,7 +224,7 @@ class Fog:
                 qsize = self.q.qsize()
                 task = self.q.get().task
                 task['times']['dequeueTime'] = time.time()
-                task['times']['queueLength'] = self.q.qsize()
+                task['times']['queueLength'] = qsize
                 # print(qsize)
                 # t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
                 t = mp.Process(target=self.devices[best_fog].doTask, args=(task,))
@@ -371,6 +372,7 @@ class Simulation:
 
 def main():
     t0 = time.time()
+    file = './result/teste 0'
     print('Start Time:',t0)
     f = open('testes.csv', 'r')
     tests = csv.reader(f)
@@ -378,7 +380,8 @@ def main():
         print(test[:4])
         simulations = [Simulation(sensors=180 ,taskResource=test[2], fogs=9, fogResources=test[1], requests=int(test[3]))]
         for s in simulations:
-            s.sim(test[0])
+            s.sim(file)
+
     f.close()
     tf = time.time()
     print('elapsed time: ', (tf-t0))
@@ -386,7 +389,7 @@ def main():
 def main2():
     t0 = time.time()
     print('Start Time:',t0)
-    simulations = [Simulation(sensors=100 ,taskResource='soft', fogs=9, fogResources='large', requests=1000)]
+    simulations = [Simulation(sensors=100 ,taskResource='soft', fogs=9, fogResources='large', requests=100)]
     for s in simulations:
         s.sim('0')
     tf = time.time()
