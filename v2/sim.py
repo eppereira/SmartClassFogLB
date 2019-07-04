@@ -23,20 +23,6 @@ class FogDevice:
 
     evaluation = 100000
 
-    times0 = dict()
-    times1 = dict()
-    queueTimes0 = dict()
-    queueTimes1 = dict()
-    queueLength0 = dict()
-    queueLength1 = dict()
-
-    lbTimes0 = dict()
-    lbTimes1 = dict()
-
-    CPU_history = dict()
-    MEM_history = dict()
-    NET_history = dict()
-    DISK_history = dict()
     _printLock = mp.Lock()
     _writeLock = mp.Lock()
 
@@ -50,23 +36,6 @@ class FogDevice:
         self.latency = res['latency']
         self.jitter = res['jitter']
 
-        self.CPU_history[self.id] = list()
-        self.MEM_history[self.id] = list()
-        self.NET_history[self.id] = list()
-        self.DISK_history[self.id] = list()
-        self.times0[self.id] = list()
-        self.times1[self.id] = list()
-
-        self.lbTimes0[self.id] = list()
-        self.lbTimes1[self.id] = list()
-
-        self.queueTimes0[self.id] = list()
-        self.queueTimes1[self.id] = list()
-
-        self.queueLength0[self.id] = list()
-        self.queueLength1[self.id] = list()
-
-
     def doTask(self, task):
         self.tryCount += 1
         if self.canReceive():
@@ -76,22 +45,6 @@ class FogDevice:
 
             self.sucessCount += 1
             endTime = time.time()
-            self.elapsedTime = task['times']['processEnd'] - task['times']['processStart']
-            self.queueTime = task['times']['dequeueTime'] - task['times']['enqueueTime']
-            self.lbTime = task['times']['processStart'] - task['times']['dequeueTime']
-            self.qLength = task['times']['queueLength']
-            if (task['priority'] == 0):
-                self.times0[self.id].append(self.elapsedTime)
-                self.queueTimes0[self.id].append(self.queueTime)
-                self.lbTimes0[self.id].append(self.lbTime)
-                self.queueLength0[self.id].append(task['times']['queueLength'])
-
-            if (task['priority'] == 1):
-                self.times1[self.id].append(self.elapsedTime)
-                self.queueTimes1[self.id].append(self.queueTime)
-                self.lbTimes1[self.id].append(self.lbTime)
-                self.queueLength1[self.id].append(task['times']['queueLength'])
-
         else:
             self.dropsCount += 1
 
@@ -112,11 +65,6 @@ class FogDevice:
         j = random.randrange(0, self.jitter)
         wait = (j + self.latency) / 1000
         # time.sleep(wait)
-
-        self.CPU_history[self.id].append(self.CPU)
-        self.MEM_history[self.id].append(self.MEM)
-        self.NET_history[self.id].append(self.NET)
-        self.DISK_history[self.id].append(self.DISK)
 
         task['times']['processEnd'] = time.time()
 
