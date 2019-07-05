@@ -23,7 +23,7 @@ def testa(file, fogType='mixed', taskType='mixed', nReq=100):
 
     t0 = time.time()
     print('Start Time:',time.strftime('%X'))
-    simulations = [Simulation(sensors=180, taskResource=taskType, fogs=9, fogResources=fogType, requests=nReq)]
+    simulations = [Simulation(sensors=70, taskResource=taskType, fogs=9, fogResources=fogType, requests=nReq)]
     for s in simulations:
         s.sim(file)
     tf = time.time()
