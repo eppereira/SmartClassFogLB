@@ -1,7 +1,9 @@
-import queue
+from queue import PriorityQueue
 import random
-import threading as mp      # th
-# import multiprocessing as mp
+# import threading as mp      # th
+from multiprocessing.managers import SyncManager
+import multiprocessing as mp
+from multiprocessing import Process
 import time
 import csv
 import json
@@ -112,6 +114,14 @@ class FogDevice:
 
         return self.evaluation
 
+class MyManager(SyncManager):
+    pass
+MyManager.register("PriorityQueue", PriorityQueue)  # Register a shared PriorityQueue
+
+def Manager():
+    m = MyManager()
+    m.start()
+    return m
 
 class Fog:
     _lock = mp.Lock()
@@ -119,6 +129,9 @@ class Fog:
 
     def __init__(self, dev, res):
         self.n = dev
+        self.m = Manager()
+        self.q = self.m.PriorityQueue()  # This is process-safe
+
         self.fogResources = {
             'small':{
                     'CPU_count': 1,
@@ -150,7 +163,6 @@ class Fog:
             self.devices+= [FogDevice((i+(2*self.n)//3), self.fogResources['large']) for i in range(self.n//3)]
         else:
             self.devices = [FogDevice(i, self.fogResources[res]) for i in range(dev)]
-        self.q = queue.PriorityQueue()
 
     def queueTask(self, task):
         self.q.put(task)
@@ -175,7 +187,7 @@ class Fog:
                 task['times']['queueLength'] = qsize
                 # print(qsize)
                 # t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
-                t = mp.Thread(target=self.devices[best_fog].doTask, args=(task,))
+                t = mp.Process(target=self.devices[best_fog].doTask, args=(task,))
                 t.start()
                 # self.devices[best_fog].doTask(task)
         self.sending = False
@@ -312,7 +324,7 @@ class Simulation:
             sensors = [Sensor(i, self.REQUESTS, self.taskResource, id_teste) for i in range(self.SENSORES)]
 
         # t = [th.Thread(target=s.run, args=(self.f,)) for s in sensors]
-        t = [mp.Thread(target=s.run, args=(self.f,)) for s in sensors]
+        t = [mp.Process(target=s.run, args=(self.f,)) for s in sensors]
         [thread.start() for thread in t]
         # self.f.LB.join()
         [thread.join() for thread in t]
