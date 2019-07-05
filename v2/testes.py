@@ -100,22 +100,3 @@ with open('testes.csv', 'r') as csvFile:
         file = './result/teste '+teste[0]
         data = testa(file, teste[1], teste[2], int(teste[3]))
         mostra(data)
-
-
-# In[ ]:
-
-
-fogCount
-
-
-# In[ ]:
-
-
-len(data)
-
-
-# In[ ]:
-
-
-
-
