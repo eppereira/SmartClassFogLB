@@ -1,7 +1,7 @@
 import queue
 import random
-import threading as th
-import multiprocessing as mp
+import threading as mp      # th
+# import multiprocessing as mp
 import time
 import csv
 import json
@@ -154,7 +154,7 @@ class Fog:
 
     def queueTask(self, task):
         self.q.put(task)
-
+        # print(task.task, task.priority)
         if (self.sending == False):
             # self.LB = th.Thread(target=self.sendTask)
             # self.LB.start()
@@ -175,7 +175,7 @@ class Fog:
                 task['times']['queueLength'] = qsize
                 # print(qsize)
                 # t = th.Thread(target=self.devices[best_fog].doTask, args=(task,))
-                t = mp.Process(target=self.devices[best_fog].doTask, args=(task,))
+                t = mp.Thread(target=self.devices[best_fog].doTask, args=(task,))
                 t.start()
                 # self.devices[best_fog].doTask(task)
         self.sending = False
@@ -219,18 +219,19 @@ class Sensor:
 
     def __init__(self, i, req, taskType, id_teste):
         # self.FREQ = random.randint(0, 300) / 1000
-        self.FREQ = 100/1000
+        self.FREQ = random.randint(100, 300)/1000
         # tempo entre requests em milisegundos
         self.REQUESTS = req  # num of requests
         self.ID = i
         self.taskType = taskType
         self.id_teste = id_teste
         priorityLevels = [0, 1]
-        self.priority = priorityLevels[i%2]
+        self.priority = i%2
 
     def run(self, f):
         for i in range(self.REQUESTS):
             self.requestTask(f, i)
+            self.FREQ = random.randint(100, 300)/1000
             time.sleep(self.FREQ)
 
     def requestTask(self, f, i):
@@ -284,7 +285,6 @@ class Sensor:
 
 class Task:
     __slots__ = ('priority', 'task')
-
     def __init__(self, task):
         self.priority = task['priority']
         self.task = task
@@ -312,7 +312,7 @@ class Simulation:
             sensors = [Sensor(i, self.REQUESTS, self.taskResource, id_teste) for i in range(self.SENSORES)]
 
         # t = [th.Thread(target=s.run, args=(self.f,)) for s in sensors]
-        t = [mp.Process(target=s.run, args=(self.f,)) for s in sensors]
+        t = [mp.Thread(target=s.run, args=(self.f,)) for s in sensors]
         [thread.start() for thread in t]
         # self.f.LB.join()
         [thread.join() for thread in t]
